@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<logs>
+    <extended type="tsv">
+        <column name="record_id" datatype="TEXT" primaryKey="true"/>
+        <column name="client_id" datatype="INTEGER"/>
+        <column name="request_id" datatype="INTEGER"/>
+        <column name="date_time" datatype="TIMESTAMP" format="DD/Mon/YYYY:HH24:MI:SS"/>
+        <column name="elapsed_time" datatype="INTEGER"/>
+        <column name="status" datatype="INTEGER"/>
+        <column name="size" datatype="INTEGER"/>
+        <column name="upload" datatype="INTEGER"/>
+        <column name="download" datatype="INTEGER"/>
+        <column name="bypassed" datatype="BOOLEAN"/>
+        <column name="client_ip" datatype="TEXT"/>
+        <column name="username" datatype="TEXT"/>
+        <column name="method" datatype="TEXT"/>
+        <column name="url" datatype="TEXT"/>
+        <column name="http_referer" datatype="TEXT"/>
+        <column name="useragent" datatype="TEXT"/>
+        <column name="mime" datatype="TEXT"/>
+        <column name="filter_name" datatype="TEXT"/>
+        <column name="filtering_reason" datatype="TEXT"/>
+        <column name="interface" datatype="TEXT"/>
+        <column name="cachecode" datatype="TEXT"/>
+        <column name="peercode" datatype="TEXT"/>
+        <column name="peer" datatype="TEXT"/>
+        <column name="request_host" datatype="TEXT"/>
+        <column name="request_tld" datatype="TEXT"/>
+        <column name="referer_host" datatype="TEXT"/>
+        <column name="referer_tld" datatype="TEXT"/>
+        <column name="range" datatype="TEXT"/>
+        <column name="time_profiles" datatype="TEXT" array="true"/>
+        <column name="user_groups" datatype="TEXT" array="true"/>
+        <column name="request_profiles" datatype="TEXT" array="true"/>
+        <column name="application_signatures" datatype="TEXT" array="true"/>
+        <column name="categories" datatype="TEXT" array="true"/>
+        <column name="response_profiles" datatype="TEXT" array="true"/>
+        <column name="upload_content_types" datatype="TEXT" array="true"/>
+        <column name="download_content_types" datatype="TEXT" array="true"/>
+        <column name="profiles" datatype="TEXT" array="true"/>
+    </extended>
+    <performance type="csv">
+        <column name="timestamp" datatype="TIMESTAMP" format="YYYYMMDDHH24MISS"/>
+        <column name="elapsed_time" datatype="INTEGER"/>
+        <column name="client_connections_handled" datatype="INTEGER"/>
+        <column name="client_connections_closed" datatype="INTEGER"/>
+        <column name="client_transactions_handled" datatype="INTEGER"/>
+        <column name="client_connections_in_pool" datatype="INTEGER"/>
+        <column name="spare_client_threads" datatype="INTEGER"/>
+        <column name="client_threads_in_use" datatype="INTEGER"/>
+        <column name="client_threads_in_waiting" datatype="INTEGER"/>
+        <column name="threads_starting_up" datatype="INTEGER"/>
+        <column name="threads_reserved_for_prefetching" datatype="INTEGER"/>
+        <column name="threading_errors" datatype="INTEGER"/>
+        <column name="outbound_connections_created" datatype="INTEGER"/>
+        <column name="outbound_connections_failed" datatype="INTEGER"/>
+        <column name="outbound_connection_pool_reused" datatype="INTEGER"/>
+        <column name="outbound_connections_in_pool" datatype="INTEGER"/>
+        <column name="bytes_in_kbytes" datatype="INTEGER"/>
+        <column name="bytes_out_kbytes" datatype="INTEGER"/>
+        <column name="caching_objects_created_in_memory" datatype="INTEGER"/>
+        <column name="caching_objects_removed_from_memory" datatype="INTEGER"/>
+        <column name="dns_queries_reused" datatype="INTEGER"/>
+        <column name="new_dns_queries" datatype="INTEGER"/>
+        <column name="dns_query_failures" datatype="INTEGER"/>
+        <column name="total_system_memory_kbytes" datatype="INTEGER"/>
+        <column name="free_system_memory_kbytes" datatype="INTEGER"/>
+        <column name="safesquid_virtual_memory_kbytes" datatype="INTEGER"/>
+        <column name="safesquid_resident_memory_kbytes" datatype="INTEGER"/>
+        <column name="safesquid_shared_memory_kbytes" datatype="INTEGER"/>
+        <column name="safesquid_code_memory_kbytes" datatype="INTEGER"/>
+        <column name="safesquid_data_memory_kbytes" datatype="INTEGER"/>
+        <column name="safesquid_library_memory_kbytes" datatype="INTEGER"/>
+        <column name="connections_handled_delta" datatype="INTEGER"/>
+        <column name="connections_closed_delta" datatype="INTEGER"/>
+        <column name="transactions_handled_delta" datatype="INTEGER"/>
+        <column name="client_pool_delta" datatype="INTEGER"/>
+        <column name="spare_threads_delta" datatype="INTEGER"/>
+        <column name="active_threads_delta" datatype="INTEGER"/>
+        <column name="threads_waiting_delta" datatype="INTEGER"/>
+        <column name="threads_starting_up_delta" datatype="INTEGER"/>
+        <column name="threads_prefetching_delta" datatype="INTEGER"/>
+        <column name="threading_errors_delta" datatype="INTEGER"/>
+        <column name="outbound_connections_created_delta" datatype="INTEGER"/>
+        <column name="outbound_connections_failed_delta" datatype="INTEGER"/>
+        <column name="outbound_connection_pool_reused_delta" datatype="INTEGER"/>
+        <column name="outbound_connections_in_pool_delta" datatype="INTEGER"/>
+        <column name="bytes_in_kbytes_delta" datatype="INTEGER"/>
+        <column name="bytes_out_kbytes_delta" datatype="INTEGER"/>
+        <column name="caching_objects_created_in_memory_delta" datatype="INTEGER"/>
+        <column name="caching_objects_removed_from_memory_delta" datatype="INTEGER"/>
+        <column name="dns_queries_reused_delta" datatype="INTEGER"/>
+        <column name="new_dns_queries_delta" datatype="INTEGER"/>
+        <column name="dns_query_failures_delta" datatype="INTEGER"/>
+        <column name="load_avg_1_min" datatype="FLOAT"/>
+        <column name="load_avg_5_min" datatype="FLOAT"/>
+        <column name="load_avg_15_min" datatype="FLOAT"/>
+        <column name="running_processes" datatype="INTEGER"/>
+        <column name="waiting_processes" datatype="INTEGER"/>
+        <column name="user_time" datatype="FLOAT"/>
+        <column name="system_time" datatype="FLOAT"/>
+        <column name="total_time" datatype="FLOAT"/>
+        <column name="user_time_delta" datatype="FLOAT"/>
+        <column name="system_time_delta" datatype="FLOAT"/>
+        <column name="total_time_delta" datatype="FLOAT"/>
+    </performance>
+</logs>

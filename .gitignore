@@ -1,0 +1,8 @@
+mods
+.env
+config.ini
+superset_config.py
+logs
+*env
+__pycache__
+*.log
