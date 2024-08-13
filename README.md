@@ -30,7 +30,7 @@ source /opt/aggregator/superset/safesquid_reporting/bin/activate
 Navigate to the aggregator directory where the scripts are located:
 
 ```bash
-cd /opt/aggregator/superset/safesquid_reporting/aggregator/
+cd /opt/aggregator/superset/aggregator/
 ```
 
 ## Usage
