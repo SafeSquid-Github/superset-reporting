@@ -5,6 +5,11 @@ from database import DatabaseConnectionPool as Database
 from log_parser import LogParser, BasicLogParser
 import applog
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(script_dir, 'config.ini')
+log_structure_path = os.path.join(script_dir, 'log_structure.xml')
+applog_path = os.path.join(script_dir, 'app.log')
+
 class AppContext:
     def __init__(self):
         self.db_manager: Database = None
@@ -20,7 +25,7 @@ class AppContext:
     def load_parser(self, log_type: str):
         """Load the appropriate log parser based on log type."""
         self.parser = BasicLogParser(self.db_manager, f"{log_type}_logs")
-        self.parser.load_log_schema(log_type, 'log_structure.xml')
+        self.parser.load_log_schema(log_type, log_structure_path)
 
 pass_context = click.make_pass_decorator(AppContext, ensure=True)
 
@@ -29,7 +34,7 @@ pass_context = click.make_pass_decorator(AppContext, ensure=True)
 def cli(ctx: AppContext):
     """Command-line interface for managing the database and logs."""
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(config_path)
     username = config['database']['username']
     password = config['database']['password']
     host = config['database']['host']
@@ -38,7 +43,7 @@ def cli(ctx: AppContext):
     maxconns = config['database']['maxconns']
     ctx.db_manager = Database(username, password, host, port, dbname, maxconns)
 
-    ctx.configure_logging('app.log')
+    ctx.configure_logging(applog_path)
 
 @cli.command()
 @pass_context
