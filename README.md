@@ -47,7 +47,7 @@ To forward performance and CSP logs, you need to configure `rsyslog` using a cus
    Validate the configuration by running the following command:
 
    ```bash
-   rsyslogd -N1 -f /etc/rsyslog.d/proxyserver.conf &> /dev/null && echo "INFO: Config OK!!"
+   rsyslogd -N1 -f /etc/rsyslog.d/proxyserver.conf &> /dev/null && echo 'INFO: Config OK!!'
    ```
 
    If the configuration is correct, you will see the message: `INFO: Config OK!!`
