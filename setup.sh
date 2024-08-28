@@ -124,7 +124,7 @@ SETUP_DIR () {
   chmod 755 "${SCRIPT_DIR}/"*
 
   echo "INFO: Creating softlinks"
-  ln -sf ${SCRIPT_DIR}/* /usr/local/bin/
+  ln -sf ${SCRIPT_DIR}/*.sh /usr/local/bin/
 }
 
 #Disable apparmor enforcment for rsyslog.
