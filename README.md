@@ -1,35 +1,50 @@
+
 # Getting Started with SuperSet
 
-This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. 
-The `setup.sh` script will configure the following for you:
+This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. The `setup.sh` script will automate the configuration of various components necessary for the setup.
 
-- **Python 3.10**: The script ensures that Python 3.10 is installed on your system.
-- **Virtual Environment**: A virtual environment will be set up to isolate the Python environment for SafeSquid Reporting.
-- **SuperSet**: This setup assumes SuperSet is installed and configured on your system.
-
-## Default Setup.
+## Default Setup
 
 ### 1. Execute with Default Values
 
-To start the setup process with the default configuration, simply execute the following command:
+To start the setup process with the default configuration, execute the following command:
 
-```bash
+```
 bash setup.sh
 ```
 
-### 2. Activate Virtual Environment
+### 2. Check Service Status
+
+After the setup completes, verify that the services are running correctly:
+
+```
+systemctl status superset.service
+systemctl status superset_db_insert_ext.service
+systemctl status superset_db_insert_perf.service
+systemctl status superset_db_insert_csp.service
+```
+
+Once the services are working without any issues, you can configure your client to forward logs to the log server (which in this case, will be your proxy server). 
+To update the log settings, refer to the following documents:
+
+- [Forwarding Logs to the aggregator Server](https://help.safesquid.com/portal/en/kb/articles/forwarding-logs-to-the-siem-server-by-configuring-the-udp-port)
+- [Safesquid Startup Parameters Overview](https://help.safesquid.com/portal/en/kb/articles/safesquid-startup-parameters#Overview)
+
+## Manual Insertion of Logs into the Database
+
+### 1. Activate Virtual Environment
 
 Once the setup script has completed, activate the virtual environment to ensure all Python dependencies are correctly managed:
 
-```bash
+```
 source /opt/aggregator/safesquid_reporting/bin/activate
 ```
 
-### 3. Change to the Aggregator Directory
+### 2. Change to the Aggregator Directory
 
 Navigate to the aggregator directory where the scripts are located:
 
-```bash
+```
 cd /opt/aggregator/bin/
 ```
 
@@ -37,13 +52,11 @@ cd /opt/aggregator/bin/
 
 The `main.py` script provides a command-line interface for managing the database and logs. Below are the available commands:
 
-### 4. Create the Database
+### 3. Create the Database
 
-Next, you'll need to create the necessary databases for storing logs. 
-The following commands will create databases based on the log type: extended or performance.
+Next, you'll need to create the necessary databases for storing logs. The following commands will create databases based on the log type: extended or performance.
 
-**Note:** The `create-database` command requires an argument specifying the log type (`extended` or `performance`). 
-If you do not provide this argument, you will receive an error:
+**Note:** The `create-database` command requires an argument specifying the log type (`extended` or `performance`). If you do not provide this argument, you will receive an error:
 
 ```
 Usage: main.py create-database [OPTIONS] {extended|performance}
@@ -53,19 +66,24 @@ Error: Missing argument '{extended|performance}'. Choose from:
         extended,
         performance
 ```
+
 To create the database for extended logs:
+
 **Example:**
-```bash
+
+```
 python3 main.py create-database extended
 ```
 
 To create the database for performance logs:
+
 **Example:**
-```bash
+
+```
 python3 main.py create-database performance
 ```
 
-### 5. Insert Logs into the Database
+### 4. Insert Logs into the Database
 
 To insert logs into the database at any time, use the following command. Ensure you're in the `aggregator` directory before executing:
 
@@ -73,15 +91,17 @@ Replace `<log_type>` with `extended` or `performance`, and `<log_file_path>` wit
 
 **Note:** The `insert` command requires two arguments: the log type and the path to the log file. If either argument is missing, the command will fail with an error.
 
-```bash
+```
 python main.py insert <log_type> <log_file_path>
 ```
+
 **Example:**
-```bash
+
+```
 python main.py insert extended /var/log/aggregator/rsyslog/extended/192.168.2.10/20240603164101-extended.log
 ```
 
-# Custom Setup Options (For customizing the installation of superset)
+# Custom Setup Options (For customizing the installation of SuperSet)
 
 If you need to customize the setup (e.g., changing default user credentials, host, or database name), you can use the following steps.
 
@@ -89,7 +109,7 @@ If you need to customize the setup (e.g., changing default user credentials, hos
 
 First, review the help menu to understand the available options:
 
-```bash
+```
 bash setup.sh -h
 ```
 
@@ -97,7 +117,7 @@ bash setup.sh -h
 
 To execute the setup with custom values, use the following command. Replace the placeholders with your desired values:
 
-```bash
+```
 bash setup.sh -u admin -p password -H 127.0.0.1 -P 5432 -d safesquid_logs -a admin -w password -f admin -l admin -e admin@mail.com -D /opt/aggregator -v safesquid_reporting
 ```
 
@@ -118,23 +138,21 @@ bash setup.sh -u admin -p password -H 127.0.0.1 -P 5432 -d safesquid_logs -a adm
 
 ## Additional Options in main.py
 
-The main.py script offers several commands to manage and interact with your database. 
-Below are some of the additional options available:
+The `main.py` script offers several commands to manage and interact with your database. Below are some of the additional options available:
 
 ### Help Menu
 
 For further assistance and details on each command:
 
-```bash
+```
 python3 main.py --help
 ```
 
 ### Clear the Database
 
 To clear the database and drop all tables:
-Drops all the columns of extended and performance table.
 
-```bash
+```
 python3 main.py clear-database
 ```
 
@@ -142,7 +160,7 @@ python3 main.py clear-database
 
 To analyze the logs stored in the database and retrieve information about the database schema and row counts, use:
 
-```bash
+```
 python3 main.py analyse-database
 ```
 
@@ -187,3 +205,50 @@ For example, analyzing the `extended_logs` table may produce output similar to t
   - **Column**: `download_content_types`, Type: `ARRAY`
   - **Column**: `profiles`, Type: `ARRAY`
   - **Row count**: `67225`
+
+## Process Flow
+```
+                               +----------------+
+                               |  Proxy Server  |
+                               +----------------+
+                                      |
+                                      | Pushes Logs
+                                      v
+                          +--------------------------+
+                          |      rsyslog Server      |
+                          | (Listening on UDP Ports) |
+                          +--------------------------+
+                           /             |             \
+                          /              |              \
+                         v               v               v
+          +-------------------+  +-------------------+  +-------------------+
+          |   Port 514 (Ext)   |  | Port 515 (Perf)   |  |   Port 516 (CSP)  |
+          +-------------------+  +-------------------+  +-------------------+
+                  |                     |                                |
+                  |                     |                                |
+                  v                     v                                v
+ +--------------------------------+ +--------------------------------+ +--------------------------------+
+ | /var/log/aggregator/rsyslog/   | | /var/log/aggregator/rsyslog/   | | /var/log/aggregator/rsyslog/   |
+ | extended/%FROMHOST-IP%/        | | performance/%FROMHOST-IP%/     | | csp/%FROMHOST-IP%/             |
+ | extended.log                   | | performance.log                | | csp.log                        |
+ +--------------------------------+ +--------------------------------+ +--------------------------------+
+                  |                           |                                 |
+                  |                           |                                 |
+                  v                           v                                 v
+ +---------------------------------------------------------------------------------+
+ |                                 Log Rotation                                    |
+ |                            (Triggered at 100MB)                                 |
+ +---------------------------------------------------------------------------------+
+                       |                          |                     |
+                       |                          |                     |
+                       v                          v                     v
+ +--------------------------------+ +--------------------------------+ +--------------------------------+
+ | Insert into Extended DB        | | Insert into Performance DB     | | Insert into CSP DB             |
+ +--------------------------------+ +--------------------------------+ +--------------------------------+
+                  |                     |                     |
+                  |                     |                     |
+                  v                     v                     v
+          +---------------------------------------------------------------------+
+          |                            Database Services                        |
+          +---------------------------------------------------------------------+
+```
