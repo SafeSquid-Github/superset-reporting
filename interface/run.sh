@@ -28,15 +28,15 @@ while getopts "p:dt:" opt; do
 done
 
 # Load environment variables from the .env file
-if [ -f .env ]; then
-  export $(cat .env | grep -v '^#' | xargs)
-else
-  echo ".env file not found. Please create one and try again."
-  exit 1
-fi
+# if [ -f .env ]; then
+#   export $(cat .env | grep -v '^#' | xargs)
+# else
+#   echo ".env file not found. Please create one and try again."
+#   exit 1
+# fi
 
 # Check if the necessary environment variables are set
-if [ -z "$FLASK_APP" ] || [ -z "$SUPERSET_CONFIG_PATH" ]; then
+if [ -z "$FLASK_APP" ] &&  [ -z "$SUPERSET_CONFIG_PATH" ]; then
   echo "Required environment variables FLASK_APP or SUPERSET_CONFIG_PATH are not set."
   exit 1
 fi
