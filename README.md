@@ -7,7 +7,7 @@ The `setup.sh` script will configure the following for you:
 - **Virtual Environment**: A virtual environment will be set up to isolate the Python environment for SafeSquid Reporting.
 - **SuperSet**: This setup assumes SuperSet is installed and configured on your system.
 
-## Setup Steps
+## Default Setup.
 
 ### 1. Execute with Default Values
 
@@ -22,7 +22,7 @@ bash setup.sh
 Once the setup script has completed, activate the virtual environment to ensure all Python dependencies are correctly managed:
 
 ```bash
-source /opt/aggregator/superset/safesquid_reporting/bin/activate
+source /opt/aggregator/safesquid_reporting/bin/activate
 ```
 
 ### 3. Change to the Aggregator Directory
@@ -30,7 +30,7 @@ source /opt/aggregator/superset/safesquid_reporting/bin/activate
 Navigate to the aggregator directory where the scripts are located:
 
 ```bash
-cd /opt/aggregator/superset/aggregator/
+cd /opt/aggregator/bin/
 ```
 
 ## Usage
@@ -56,13 +56,13 @@ Error: Missing argument '{extended|performance}'. Choose from:
 To create the database for extended logs:
 **Example:**
 ```bash
-python main.py create-database extended
+python3 main.py create-database extended
 ```
 
 To create the database for performance logs:
 **Example:**
 ```bash
-python main.py create-database performance
+python3 main.py create-database performance
 ```
 
 ### 5. Insert Logs into the Database
@@ -78,7 +78,7 @@ python main.py insert <log_type> <log_file_path>
 ```
 **Example:**
 ```bash
-python main.py insert extended /var/log/safesquid/extended/20240603164101-extended.log
+python main.py insert extended /var/log/aggregator/rsyslog/extended/192.168.2.10/20240603164101-extended.log
 ```
 
 # Custom Setup Options (For customizing the installation of superset)
@@ -98,7 +98,7 @@ bash setup.sh -h
 To execute the setup with custom values, use the following command. Replace the placeholders with your desired values:
 
 ```bash
-bash setup.sh -u admin -p password -H 127.0.0.1 -P 5432 -d safesquid_logs -a admin -w password -f admin -l admin -e admin@mail.com -D /opt/aggregator/superset -v /opt/aggregator/superset/safesquid_reporting
+bash setup.sh -u admin -p password -H 127.0.0.1 -P 5432 -d safesquid_logs -a admin -w password -f admin -l admin -e admin@mail.com -D /opt/aggregator -v safesquid_reporting
 ```
 
 ### 3. Explanation of Parameters
@@ -113,8 +113,8 @@ bash setup.sh -u admin -p password -H 127.0.0.1 -P 5432 -d safesquid_logs -a adm
 - **-f ADMIN_FIRST_NAME**: Admin first name (default: `admin`)
 - **-l ADMIN_LAST_NAME**: Admin last name (default: `admin`)
 - **-e ADMIN_EMAIL**: Admin email address (default: `admin@mail.com`)
-- **-D DIRECTORY_NAME**: Directory name for the project (default: `/opt/aggregator/superset`)
-- **-v VENV_NAME**: Virtual environment path (default: `${PROJECT_DIR}/safesquid_reporting`)
+- **-D DIRECTORY_NAME**: Directory name for the project (default: `/opt/aggregator`)
+- **-v VENV_NAME**: Virtual environment path (default: `safesquid_reporting`)
 
 ## Additional Options in main.py
 
@@ -126,7 +126,7 @@ Below are some of the additional options available:
 For further assistance and details on each command:
 
 ```bash
-python main.py --help
+python3 main.py --help
 ```
 
 ### Clear the Database
@@ -135,7 +135,7 @@ To clear the database and drop all tables:
 Drops all the columns of extended and performance table.
 
 ```bash
-python main.py clear-database
+python3 main.py clear-database
 ```
 
 ### Analyze the Database
@@ -143,7 +143,7 @@ python main.py clear-database
 To analyze the logs stored in the database and retrieve information about the database schema and row counts, use:
 
 ```bash
-python main.py analyse-database
+python3 main.py analyse-database
 ```
 
 For example, analyzing the `extended_logs` table may produce output similar to this:

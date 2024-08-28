@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #syslog logging
-# THIS_PROCESS=$BASHPID
-# TAG="repoter.setup"
-# if [[ -t 1 ]]; then
-#     exec 1> >( exec logger --id=${THIS_PROCESS} -s -t "${TAG}" ) 2>&1
-# else
-#     exec 1> >( exec logger --id=${THIS_PROCESS} -t "${TAG}" ) 2>&1
-# fi
+THIS_PROCESS=$BASHPID
+TAG="repoter.setup"
+if [[ -t 1 ]]; then
+    exec 1> >( exec logger --id=${THIS_PROCESS} -s -t "${TAG}" ) 2>&1
+else
+    exec 1> >( exec logger --id=${THIS_PROCESS} -t "${TAG}" ) 2>&1
+fi
 
 # Function to print the usage of the script
 usage() {
@@ -54,7 +54,7 @@ VENV_NAME="${PROJECT_DIR}/safesquid_reporting"
 SERVICE_DIR="${PROJECT_DIR}/etc/systemd/system"
 SUPERSET_CONF_DIR="${PROJECT_DIR}/etc/superset"
 AGG_CONF_DIR="${PROJECT_DIR}/etc/aggregator"
-SCRIPT_DIR="${PROJECT_DIR}/usr/local/bin"
+SCRIPT_DIR="${PROJECT_DIR}/bin"
 
 # Validate required arguments
 [ -z ${OPTARG} ] && echo "INFO: Using default values" 
@@ -122,6 +122,9 @@ SETUP_DIR () {
 
   echo "INFO: Setting up permissions"
   chmod 755 "${SCRIPT_DIR}/"*
+
+  echo "INFO: Creating softlinks"
+  ln -sf ${SCRIPT_DIR}/* /usr/local/bin/
 }
 
 #Disable apparmor enforcment for rsyslog.

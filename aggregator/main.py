@@ -6,9 +6,9 @@ from log_parser import LogParser, BasicLogParser
 import applog
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.abspath(os.path.join(script_dir,'../../../etc/aggregator', 'config.ini'))
-log_structure_path = os.path.abspath(os.path.join(script_dir,'../../../etc/aggregator', 'log_structure.xml'))
-applog_path = os.path.join(script_dir, 'app.log')
+config_path = os.path.abspath(os.path.join(script_dir,'../etc/aggregator', 'config.ini'))
+log_structure_path = os.path.abspath(os.path.join(script_dir,'../etc/aggregator', 'log_structure.xml'))
+applog_path = os.path.join(script_dir, '/var/log/aggregator.log')
 
 class AppContext:
     def __init__(self):
