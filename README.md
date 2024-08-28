@@ -30,6 +30,38 @@ To update the log settings, refer to the following documents:
 - [Forwarding Logs to the aggregator Server](https://help.safesquid.com/portal/en/kb/articles/forwarding-logs-to-the-siem-server-by-configuring-the-udp-port)
 - [Safesquid Startup Parameters Overview](https://help.safesquid.com/portal/en/kb/articles/safesquid-startup-parameters#Overview)
 
+**Note:** Using the startup parameters you can forward extended logs, however, for performance and CSP logs you are required to follow the method below for setting up the log forward.
+
+### Setting Up rsyslog for Forwarding Performance and CSP Logs (For your proxy server)
+
+To forward performance and CSP logs, you need to configure `rsyslog` using a custom configuration file. Follow the steps below:
+
+1. **Download and Configure the rsyslog File**  
+   Use the following command to download the custom `rsyslog.conf` file and place it in the correct directory:
+
+   ```bash
+   wget https://raw.githubusercontent.com/SafeSquid-Github/superset-reporting/master/proxy_rsyslog/proxyserver.conf -O /etc/rsyslog.d/proxyserver.conf
+   ```
+
+2. **Validate the Configuration**  
+   Validate the configuration by running the following command:
+
+   ```bash
+   rsyslogd -N1 -f /etc/rsyslog.d/proxyserver.conf &> /dev/null && echo "INFO: Config OK!!"
+   ```
+
+   If the configuration is correct, you will see the message: `INFO: Config OK!!`
+
+3. **Restart the rsyslog Service**  
+   After configuring, restart the `rsyslog` service to apply the changes:
+
+   ```bash
+   systemctl restart rsyslog.service
+   ```
+
+By following these steps, you will successfully set up `rsyslog` to forward performance and CSP logs.
+
+
 ## Manual Insertion of Logs into the Database
 
 ### 1. Activate Virtual Environment
