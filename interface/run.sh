@@ -1,5 +1,7 @@
 #!/bin/bash
 
+ENV="../etc/superset/.env"
+
 # Function to print the usage of the script
 usage() {
   echo "Usage: $0 [-p PORT] [-d]"
@@ -28,31 +30,19 @@ while getopts "p:dt:" opt; do
 done
 
 # Load environment variables from the .env file
-# if [ -f .env ]; then
-#   export $(cat .env | grep -v '^#' | xargs)
-# else
-#   echo ".env file not found. Please create one and try again."
-#   exit 1
-# fi
+[ -f ${ENV} ] && export $(cat ${ENV} | grep -v '^#' | xargs)
+[ ! -f ${ENV} ] && echo "${ENV} file not found. Please create one and try again." && exit 1
 
 # Check if the necessary environment variables are set
-if [ -z "$FLASK_APP" ] &&  [ -z "$SUPERSET_CONFIG_PATH" ]; then
-  echo "Required environment variables FLASK_APP or SUPERSET_CONFIG_PATH are not set."
-  exit 1
-fi
+[ -z "$FLASK_APP" ] &&  [ -z "$SUPERSET_CONFIG_PATH" ] && echo "Required environment variables FLASK_APP or SUPERSET_CONFIG_PATH are not set." && exit 1
 
 # Run Apache Superset
 COMMAND="superset run -p $PORT --with-threads"
-if [ "$DEBUG" = true ]; then
-  COMMAND="$COMMAND --reload --debugger"
-fi
+[ "$DEBUG" = true ] && COMMAND="$COMMAND --reload --debugger"
 
 echo "Starting Apache Superset with command: $COMMAND"
 $COMMAND
 
 # Provide feedback on the status
-if [ $? -eq 0 ]; then
-  echo "Apache Superset started successfully."
-else
-  echo "Failed to start Apache Superset."
-fi
+[ $? == 0 ] && echo "Apache Superset started successfully."
+[ $? != 0 ] && echo "Failed to start Apache Superset."
