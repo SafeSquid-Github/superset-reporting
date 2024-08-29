@@ -37,6 +37,31 @@ PG_DB="/var/db/aggregator"
 # Validate required arguments
 [ -z ${OPTARG} ] && echo "INFO: Using default values"
 
+# Move files to project directory and set up directory structure
+SETUP_DIR () {
+
+	# Create directory structure
+	[ ! -d "${SCRIPT_DIR}" ] && mkdir -p "${SCRIPT_DIR}"
+	[ ! -d "${SUPERSET_CONF_DIR}" ] && mkdir -p "${SUPERSET_CONF_DIR}"
+	[ ! -d "${AGG_CONF_DIR}" ] && mkdir -p "${AGG_CONF_DIR}"
+
+	# Move all script files
+	rsync -azv ${CURRENT_DIR}/aggregator/*.py "${SCRIPT_DIR}/"
+	rsync -azv ${CURRENT_DIR}/interface/*.sh "${SCRIPT_DIR}/"
+	rsync -azv ${CURRENT_DIR}/scripts/* "${SCRIPT_DIR}/"
+
+	# Move all configurations
+	rsync -azv ${CURRENT_DIR}/aggregator/*.xml "${AGG_CONF_DIR}/"
+	rsync -azv ${CURRENT_DIR}/etc/* "${PROJECT_DIR}/etc/"
+	rsync -azv ${PROJECT_DIR}/etc/rsyslog.d/* /etc/rsyslog.d/
+
+	echo "INFO: Project directory synced with latest changes"
+	echo "INFO: Setting up permissions"
+	chmod 755 "${SCRIPT_DIR}/"* # Set permissions for script files
+	echo "INFO: Creating softlinks"
+	ln -sf ${SCRIPT_DIR}/*.sh /usr/local/bin/ # Create symbolic links for scripts
+}
+
 # Update package list and install necessary system packages
 SYS_PACKAGES () {
 
@@ -73,64 +98,6 @@ PY_VERSION_CHECK () {
 	[[ ${PY_V} != 3.10 ]] && echo "INFO: python version not supported, 3.10 is required" && return 1
 }
 
-# Move files to project directory and set up directory structure
-SETUP_DIR () {
-
-	# Create directory structure
-	[ ! -d "${SCRIPT_DIR}" ] && mkdir -p "${SCRIPT_DIR}"
-	[ ! -d "${SUPERSET_CONF_DIR}" ] && mkdir -p "${SUPERSET_CONF_DIR}"
-	[ ! -d "${AGG_CONF_DIR}" ] && mkdir -p "${AGG_CONF_DIR}"
-
-	# Move all script files
-	rsync -azv ${CURRENT_DIR}/aggregator/*.py "${SCRIPT_DIR}/"
-	rsync -azv ${CURRENT_DIR}/interface/*.sh "${SCRIPT_DIR}/"
-	rsync -azv ${CURRENT_DIR}/scripts/* "${SCRIPT_DIR}/"
-
-	# Move all configurations
-	rsync -azv ${CURRENT_DIR}/aggregator/*.xml "${AGG_CONF_DIR}/"
-	rsync -azv ${CURRENT_DIR}/etc/* "${PROJECT_DIR}/etc/"
-	rsync -azv ${PROJECT_DIR}/etc/rsyslog.d/* /etc/rsyslog.d/
-
-	echo "INFO: Project directory synced with latest changes"
-	echo "INFO: Setting up permissions"
-	chmod 755 "${SCRIPT_DIR}/"* # Set permissions for script files
-	echo "INFO: Creating softlinks"
-	ln -sf ${SCRIPT_DIR}/*.sh /usr/local/bin/ # Create symbolic links for scripts
-}
-
-# Disable AppArmor enforcement for rsyslog
-DISABLE_APPARMOR_RSYSLOG () {
-
-	echo "INFO: Disabling Apparmor for rsyslogd"
-	ln -fs /etc/apparmor.d/usr.sbin.rsyslogd /etc/apparmor.d/disable/
-	[ ! -f "/etc/apparmor.d/disable/usr.sbin.rsyslogd" ] && apparmor_parser -R /etc/apparmor.d/usr.sbin.rsyslogd
-}
-
-# Configure rsyslog
-RSYSLOG_CONFIG () {
-
-	local EXIT_CODE
-	echo "INFO: Setting up rsyslog"
-	rsync -azv "${SCRIPT_DIR}/log_rotate.sh" /usr/local/bin/
-	echo "INFO: Rsyslog configuration check"
-	rsyslogd -N1 -f /etc/rsyslog.d/aggregator.conf &> /dev/null
-	EXIT_CODE="${?}"
-	[ ${EXIT_CODE} == "1" ] && echo "ERROR: SYSLOG CONF: /etc/rsyslog.d/aggregator.conf: INVALID Config" && return
-	echo "INFO: Performing rsyslog service restart"
-	systemctl restart rsyslog.service
-	echo "INFO: Disabling Apparmor for rsyslog"
-	DISABLE_APPARMOR_RSYSLOG
-}
-
-# Generate a secret key using openssl and store it in superset_config.py
-CREATE_SUPERSET_CONFIG_PY () {
-
-	SECRET_KEY=$(openssl rand -base64 42)
-	echo "SECRET_KEY = '${SECRET_KEY}'" > ${SUPERSET_CONF_DIR}/superset_config.py
-	chmod 644 ${SUPERSET_CONF_DIR}/superset_config.py
-	echo "INFO: Generated and stored SECRET_KEY in ${SUPERSET_CONF_DIR}/superset_config.py"
-}
-
 # Create the virtual environment
 CREATE_PY_ENV () {
 
@@ -139,14 +106,12 @@ CREATE_PY_ENV () {
 	source ${VENV_NAME}/bin/activate # Activate the virtual environment
 }
 
-# Create a .env file with specified environment variables
-CREATE_FLASK_ENV () {
+# Installation of required Python packages
+PY_PACKAGES () {
 
-	echo "export FLASK_APP=superset" > ${SUPERSET_CONF_DIR}/.env
-	echo "export SUPERSET_CONFIG_PATH=${SUPERSET_CONF_DIR}/superset_config.py" >> ${SUPERSET_CONF_DIR}/.env
-	# Load the .env file
-	source ${SUPERSET_CONF_DIR}/.env
-	echo "INFO: Created interface/.env file with environment variables and loaded"
+	echo "INFO: Installing python required packages"
+	python3 -m pip install --upgrade pip || python3 -m pip install --force-reinstall pip
+	python3 -m pip install --quiet --require-virtualenv --requirement requirements.txt
 }
 
 # Create PostgreSQL config file
@@ -212,64 +177,23 @@ SETUP_PSQL () {
 	[ ${EXIT_CODE} != 0 ] && echo "INFO: Database ${PGDATABASE} already exists or an error occurred."
 }
 
-# Create Redis config file
-CREATE_REDIS_CONF () {
+# Create a .env file with specified environment variables
+CREATE_FLASK_ENV () {
 
-	echo "INFO: Creating redis config file"
-cat << _EOL >> ${SUPERSET_CONF_DIR}/config.ini
-from redis import StrictRedis
-
-# Redis configuration
-REDIS_HOST = 'localhost'
-REDIS_PORT = 6379
-REDIS_DB = 0
-
-# Redis URI
-REDIS_URI = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
-# Configure Flask-Limiter to use Redis
-SUPERSET_FLASK_LIMTER_STORAGE_URI = REDIS_URI
-
-# Example of setting up other Redis-based configurations for Superset
-RESULTS_BACKEND = RedisCache(
-  host=REDIS_HOST,
-  port=REDIS_PORT,
-  key_prefix='superset_results'  # Optional: You can configure the cache as well
-)
-
-CACHE_CONFIG = {
-  'CACHE_TYPE': 'RedisCache',
-  'CACHE_DEFAULT_TIMEOUT': 300,
-  'CACHE_KEY_PREFIX': 'superset_',
-  'CACHE_REDIS_HOST': REDIS_HOST,
-  'CACHE_REDIS_PORT': REDIS_PORT,
-  'CACHE_REDIS_DB': REDIS_DB,
-}
-_EOL
-	echo "INFO: Created config.ini file with the specified content."
+	echo "export FLASK_APP=superset" > ${SUPERSET_CONF_DIR}/.env
+	echo "export SUPERSET_CONFIG_PATH=${SUPERSET_CONF_DIR}/superset_config.py" >> ${SUPERSET_CONF_DIR}/.env
+	# Load the .env file
+	source ${SUPERSET_CONF_DIR}/.env
+	echo "INFO: Created interface/.env file with environment variables and loaded"
 }
 
-# Installation of required Python packages
-PY_PACKAGES () {
+# Generate a secret key using openssl and store it in superset_config.py
+CREATE_SUPERSET_CONFIG_PY () {
 
-	echo "INFO: Installing python required packages"
-	python3 -m pip install --upgrade pip || python3 -m pip install --force-reinstall pip
-	python3 -m pip install --quiet --require-virtualenv --requirement requirements.txt
-}
-
-# Setup Superset
-SETUP_SUPERSET () {
-
-	echo "INFO: Setting up superset"
-	SUPERSET_BIN="$(which superset)"
-	[ -z ${SUPERSET_BIN} ] && echo "ERROR: Superset not found" && return 1
-	# Superset DB upgrade
-	superset db upgrade || return 1
-	# Superset FAB create-admin
-	superset fab create-admin --username ${ADMIN_USERNAME} --firstname ${ADMIN_FIRST_NAME} --lastname ${ADMIN_LAST_NAME} --email ${ADMIN_EMAIL} --password ${ADMIN_PASSWORD} || return 1
-	# Superset init
-	echo "INFO: Initializing superset"
-	superset init && echo "INFO: All tasks completed successfully." || return 1
+	SECRET_KEY=$(openssl rand -base64 42)
+	echo "SECRET_KEY = '${SECRET_KEY}'" > ${SUPERSET_CONF_DIR}/superset_config.py
+	chmod 644 ${SUPERSET_CONF_DIR}/superset_config.py
+	echo "INFO: Generated and stored SECRET_KEY in ${SUPERSET_CONF_DIR}/superset_config.py"
 }
 
 # Create a service for Superset
@@ -297,6 +221,48 @@ _EOL
 	ln -sf ${SERVICE_DIR}/superset.service /etc/systemd/system/
 	[ -f "/etc/systemd/system/superset.service" ] && systemctl daemon-reload
 	systemctl enable superset.service && systemctl start superset.service
+}
+
+# Setup Superset
+SETUP_SUPERSET () {
+
+	CREATE_FLASK_ENV
+	CREATE_SUPERSET_CONFIG_PY
+	echo "INFO: Setting up superset"
+	SUPERSET_BIN="$(which superset)"
+	[ -z ${SUPERSET_BIN} ] && echo "ERROR: Superset not found" && return 1
+	# Superset DB upgrade
+	superset db upgrade || return 1
+	# Superset FAB create-admin
+	superset fab create-admin --username ${ADMIN_USERNAME} --firstname ${ADMIN_FIRST_NAME} --lastname ${ADMIN_LAST_NAME} --email ${ADMIN_EMAIL} --password ${ADMIN_PASSWORD} || return 1
+	# Superset init
+	echo "INFO: Initializing superset"
+	superset init && echo "INFO: All tasks completed successfully." || return 1
+	SUPERSET_SERVICE
+}
+
+# Disable AppArmor enforcement for rsyslog
+DISABLE_APPARMOR_RSYSLOG () {
+
+	echo "INFO: Disabling Apparmor for rsyslogd"
+	ln -fs /etc/apparmor.d/usr.sbin.rsyslogd /etc/apparmor.d/disable/
+	[ ! -f "/etc/apparmor.d/disable/usr.sbin.rsyslogd" ] && apparmor_parser -R /etc/apparmor.d/usr.sbin.rsyslogd
+}
+
+# Configure rsyslog
+RSYSLOG_CONFIG () {
+
+	local EXIT_CODE
+	echo "INFO: Setting up rsyslog"
+	rsync -azv "${SCRIPT_DIR}/log_rotate.sh" /usr/local/bin/
+	echo "INFO: Rsyslog configuration check"
+	rsyslogd -N1 -f /etc/rsyslog.d/aggregator.conf &> /dev/null
+	EXIT_CODE="${?}"
+	[ ${EXIT_CODE} == "1" ] && echo "ERROR: SYSLOG CONF: /etc/rsyslog.d/aggregator.conf: INVALID Config" && return
+	echo "INFO: Performing rsyslog service restart"
+	systemctl restart rsyslog.service
+	echo "INFO: Disabling Apparmor for rsyslog"
+	DISABLE_APPARMOR_RSYSLOG
 }
 
 # Create databases
@@ -351,6 +317,8 @@ _EOL
 
 	systemctl enable superset_db_insert_ext.service && systemctl start superset_db_insert_ext.service
 	systemctl enable superset_db_insert_perf.service && systemctl start superset_db_insert_perf.service
+
+	DB_CREATE
 }
 
 # Display information after setup
@@ -366,17 +334,13 @@ INFO () {
 # Main function to execute the script
 MAIN () {
 
+	SETUP_DIR
 	SYS_PACKAGES
 	PY_VERSION_CHECK
-	SETUP_DIR
 	CREATE_PY_ENV
 	PY_PACKAGES
 	SETUP_PSQL
-	CREATE_FLASK_ENV
-	CREATE_SUPERSET_CONFIG_PY
 	SETUP_SUPERSET
-	SUPERSET_SERVICE
-	DB_CREATE
 	RSYSLOG_CONFIG
 	DB_INSERT_SERVICE
 	INFO
@@ -413,3 +377,44 @@ done
 
 # Execute the main function
 MAIN
+
+
+#################
+#Unused fucntions
+##################################################################################
+# # Create Redis config file
+# CREATE_REDIS_CONF () {
+
+# 	echo "INFO: Creating redis config file"
+# cat << _EOL >> ${SUPERSET_CONF_DIR}/config.ini
+# from redis import StrictRedis
+
+# # Redis configuration
+# REDIS_HOST = 'localhost'
+# REDIS_PORT = 6379
+# REDIS_DB = 0
+
+# # Redis URI
+# REDIS_URI = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+# # Configure Flask-Limiter to use Redis
+# SUPERSET_FLASK_LIMTER_STORAGE_URI = REDIS_URI
+
+# # Example of setting up other Redis-based configurations for Superset
+# RESULTS_BACKEND = RedisCache(
+#   host=REDIS_HOST,
+#   port=REDIS_PORT,
+#   key_prefix='superset_results'  # Optional: You can configure the cache as well
+# )
+
+# CACHE_CONFIG = {
+#   'CACHE_TYPE': 'RedisCache',
+#   'CACHE_DEFAULT_TIMEOUT': 300,
+#   'CACHE_KEY_PREFIX': 'superset_',
+#   'CACHE_REDIS_HOST': REDIS_HOST,
+#   'CACHE_REDIS_PORT': REDIS_PORT,
+#   'CACHE_REDIS_DB': REDIS_DB,
+# }
+# _EOL
+# 	echo "INFO: Created config.ini file with the specified content."
+# }
