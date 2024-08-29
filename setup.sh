@@ -31,7 +31,7 @@ SERVICE_DIR="${PROJECT_DIR}/etc/systemd/system"
 SUPERSET_CONF_DIR="${PROJECT_DIR}/etc/superset"
 AGG_CONF_DIR="${PROJECT_DIR}/etc/aggregator"
 SCRIPT_DIR="${PROJECT_DIR}/bin"
-PG_CONF="${PROJECT_DIR}/etc/postgresql/aggregator.conf"
+PG_CONF="${PROJECT_DIR}/etc/postgresql/postgresql.conf"
 PG_DB="/var/db/aggregator"
 
 # Validate required arguments
