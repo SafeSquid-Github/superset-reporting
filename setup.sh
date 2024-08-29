@@ -173,7 +173,7 @@ PG_DB_SETUP () {
 	[ -z "${DB}" ] && echo "INFO: DB not found" && return 1 
 	[ "${DB}" == "${PG_DB}" ] && echo "INFO: DB Exists -> ${PG_DB}" && return 0
 	#Stop postgres service
-	systemctl stop postgresql
+	systemctl stop postgresql.service
 	#Update the configuration
 	ln -sf ${PG_CONF} ${CONF}
 	# Creating a database store for postgres
@@ -181,8 +181,11 @@ PG_DB_SETUP () {
 	chown postgres:postgres ${PG_DB}
 	chmod 700 ${PG_DB}
 	#Start postgres service
-	systemctl start postgresql
+	systemctl start postgresql.service
+	#Creating new database
 	sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D ${PG_DB} -E UTF8 --locale=en_US.UTF-8
+	#Restarting service 
+	systemctl restart postgresql.service
 }
 
 # Setup PostgreSQL
