@@ -9,15 +9,15 @@ This guide will walk you through the setup and execution process for configuring
 
 To start the setup process with the default configuration, execute the following command:
 
-```
-bash setup.sh
+```bash
+sudo bash setup.sh
 ```
 
 ### 2. Check Service Status
 
 After the setup completes, verify that the services are running correctly:
 
-```
+```bash
 systemctl status superset.service
 systemctl status superset_db_insert_ext.service
 systemctl status superset_db_insert_perf.service
@@ -28,7 +28,7 @@ Once the services are working without any issues, you can configure your client 
 To update the log settings, refer to the following documents:
 
 - [Forwarding Logs to the aggregator Server](https://help.safesquid.com/portal/en/kb/articles/forwarding-logs-to-the-siem-server-by-configuring-the-udp-port)
-- [Safesquid Startup Parameters Overview](https://help.safesquid.com/portal/en/kb/articles/safesquid-startup-parameters#Overview)
+- [SafeSquid Startup Parameters Overview](https://help.safesquid.com/portal/en/kb/articles/safesquid-startup-parameters#Overview)
 
 **Note:** Using the startup parameters you can forward extended logs, however, for performance and CSP logs you are required to follow the method below for setting up the log forward.
 
