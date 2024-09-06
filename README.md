@@ -1,6 +1,7 @@
 # Getting Started with SuperSet
 
-This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. The `setup.sh` script will automate the configuration of various components necessary for the setup.
+This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. 
+The `setup.sh` script will automate the configuration of various components necessary for the setup.
 
 ## Default Setup
 
