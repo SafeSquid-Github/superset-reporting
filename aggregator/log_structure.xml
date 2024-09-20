@@ -104,4 +104,22 @@
         <column name="system_time_delta" datatype="FLOAT"/>
         <column name="total_time_delta" datatype="FLOAT"/>
     </performance>
+    <csp type="tsv">
+        <column key="document-uri" name="document-uri" datatype="TEXT"/>
+        <column key="referrer" name="referrer" datatype="TEXT"/>
+        <column key="violated-directive" name="violated-directive" datatype="TEXT"/>
+        <column key="effective-directive" name="effective-directive" datatype="TEXT"/>
+        <column key="original-policy" name="original-policy" datatype="TEXT"/>
+        <column key="blocked-uri" name="blocked-uri" datatype="TEXT"/>
+        <column key="status-code" name="status-code" datatype="INTEGER"/>
+        <column key="source-file" name="source-file" datatype="TEXT"/>
+        <column key="disposition" name="disposition" datatype="TEXT"/>
+        <column key="line-number" name="line-number" datatype="INTEGER"/>
+        <column key="column-number" name="column-number" datatype="INTEGER"/>
+        <column key="user" name="user" datatype="TEXT"/>
+        <column key="date" name="date" datatype="INTEGER"/>
+        <column key="CLIENTID" name="CLIENTID" datatype="INTEGER"/>
+        <column key="USERNAME" name="USERNAME" datatype="TEXT"/>
+        <column key="handler" name="handler" datatype="TEXT"/>
+    </csp>
 </logs>
