@@ -135,8 +135,8 @@ PG_DB_SETUP () {
 	local CONF=$(find /etc/postgresql/ -name postgresql.conf)
 	local INITDB=$(find /usr/lib/postgresql  -name initdb)
 
-	[ -z "${DB}" ] && echo "INFO: DB not found" && return 1 
-	[ "${DB}" == "${PG_DB}" ] && echo "INFO: DB Exists -> ${PG_DB}" && return 0
+	[ -z "${DB}" ] && echo "INFO: DB not found" 
+	[ "${DB}" == "${PG_DB}" ] && echo "INFO: DB Exists -> ${PG_DB}" 
 	#Stop postgres service
 	systemctl stop postgresql.service
 	#Update the configuration
