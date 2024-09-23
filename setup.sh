@@ -32,14 +32,14 @@ SUPERSET_CONF_DIR="${PROJECT_DIR}/etc/superset"
 AGG_CONF_DIR="${PROJECT_DIR}/etc/aggregator"
 SCRIPT_DIR="${PROJECT_DIR}/bin"
 PG_CONF="${PROJECT_DIR}/etc/postgresql/postgresql.conf"
-PG_DB="/var/db/aggregator"
+AGGREGATOR_DB="/var/db/aggregator"
 
 # Validate required arguments
 [ -z ${OPTARG} ] && echo "INFO: Using default values"
 
 # Move files to project directory and set up directory structure
-SETUP_DIR () {
-
+SETUP_DIR () 
+{
 	# Create directory structure
 	[ ! -d "${SCRIPT_DIR}" ] && mkdir -p "${SCRIPT_DIR}"
 	[ ! -d "${SUPERSET_CONF_DIR}" ] && mkdir -p "${SUPERSET_CONF_DIR}"
@@ -63,16 +63,16 @@ SETUP_DIR () {
 }
 
 # Update package list and install necessary system packages
-SYS_PACKAGES () {
-
+SYS_PACKAGES () 
+{
 	echo "INFO: Updating your system and installing required packages"
 	apt -qq update && apt -qq upgrade -y
 	apt -qq install -y build-essential libssl-dev libffi-dev python3-dev python3-pip python3-venv libsasl2-dev libldap2-dev default-libmysqlclient-dev libpq-dev python3-psycopg2 redis-server postgresql net-tools inotify-tools
 }
 
 # Get Python 3.10 for systems where the Python version is not 3.10
-GET_PYTHON_3_10 () {
-
+GET_PYTHON_3_10 () 
+{
 	apt -qq install software-properties-common -y
 	# Add PPA if not already added
 	grep -q "deadsnakes/ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* || add-apt-repository ppa:deadsnakes/ppa -y && echo "INFO: Adding new source for python 3.10 packages"
@@ -87,37 +87,41 @@ GET_PYTHON_3_10 () {
 }
 
 # Check Python version
-PY_VERSION_CHECK () {
-
+PY_VERSION_CHECK () 
+{
 	PY_VERSION=$(python3 --version)
-	PY_V=${PY_VERSION#*.} # Extract the major version number
+	PY_V="${PY_VERSION#Python }" # Extract the major version number
+	PY_V="${PY_V%.*}" # Extract the major version number
 	# If Python version is less than 3.10 then upgrade
-	[[ ${PY_V} != 3.10 ]] && GET_PYTHON_3_10
+	# [[ ${PY_V} == '3.10' ]] && echo "INFO: python version OK!" && return 0
+	[[ ${PY_V} != '3.10' ]] && GET_PYTHON_3_10
+	[[ ${PY_V} == '3.10' ]] && echo "INFO: python version OK!" && return 0
 	PY_VERSION=$(python3 --version)
-	PY_V=${PY_VERSION#*.}
-	[[ ${PY_V} != 3.10 ]] && echo "INFO: python version not supported, 3.10 is required" && exit 1
+	PY_V="${PY_VERSION#Python }" # Extract the major version number
+	PY_V="${PY_V%.*}" # Extract the major version number
+	[[ ${PY_V} != '3.10' ]] && echo "INFO: python version not supported, 3.10 is required" && exit 1
 }
 
 # Create the virtual environment
-CREATE_PY_ENV () {
-
+CREATE_PY_ENV () 
+{
 	echo "INFO: Creating virtual environment ${VENV_NAME}."
 	[ ! -d "${VENV_NAME}" ] && python3 -m venv ${VENV_NAME}
 	source ${VENV_NAME}/bin/activate # Activate the virtual environment
 }
 
 # Installation of required Python packages
-PY_PACKAGES () {
-
+PY_PACKAGES () 
+{
 	echo "INFO: Installing python required packages"
 	python3 -m pip install --upgrade pip || python3 -m pip install --force-reinstall pip
 	python3 -m pip install --quiet --require-virtualenv --requirement requirements.txt
 }
 
 # Create PostgreSQL config file
-CREATE_PSQL_CONF () {
-
-	echo "INFO: Creating postgres config file"
+CREATE_PSQL_CONF () 
+{
+echo "INFO: Creating postgres config file"
 cat << _EOL > "${AGG_CONF_DIR}/config.ini"
 [database]
 username = ${PGUSER}
@@ -129,36 +133,37 @@ maxconns = 1
 _EOL
 }
 
-PG_DB_SETUP () {
-	
-	local DB=$(sudo -i -u postgres psql -c "SHOW data_directory;" | grep -E -o '/.*')
-	local CONF=$(find /etc/postgresql/ -name postgresql.conf)
+AGGREGATOR_DB_CREATE () 
+{
 	local INITDB=$(find /usr/lib/postgresql  -name initdb)
-
-	[ -z "${DB}" ] && echo "INFO: DB not found" 
-	[ "${DB}" == "${PG_DB}" ] && echo "INFO: DB Exists -> ${PG_DB}" 
+	# Creating a database store for postgres
+	[ ! -d ${AGGREGATOR_DB} ] && mkdir -p ${AGGREGATOR_DB}
+	chown postgres:postgres ${AGGREGATOR_DB}
+	chmod 700 ${AGGREGATOR_DB}
 	#Stop postgres service
-	systemctl stop postgresql.service
+	systemctl stop postgresql.servic
+	#Creating new database
+	sudo -u postgres ${INITDB} -D ${AGGREGATOR_DB} -E UTF8 --locale=en_US.UTF-8
+	#Restarting service 
+	systemctl restart postgresql.service
+	echo "INFO: Postgres DB store update -> ${AGGREGATOR_DB}"
+}
+
+AGGREGATOR_DB_SETUP () 
+{	
+	local PG_DB=$(sudo -i -u postgres psql -c "SHOW data_directory;" | grep -E -o '/.*')
+	local CONF=$(find /etc/postgresql/ -name postgresql.conf)
+
+	[ -z "${PG_DB}" ] && echo "INFO: DB not found" && AGGREGATOR_DB_CREATE
+	[ "${PG_DB}" == "${AGGREGATOR_DB}" ] && echo "INFO: DB Exists -> ${AGGREGATOR_DB}" && return 0
 	#Update the configuration
 	sudo -u postgres psql -h localhost -U ${PGUSER} -d ${PGDATABASE} -c "ALTER SYSTEM SET data_directory = '/var/db/aggregator';"
 	sudo -u postgres psql -h localhost -U ${PGUSER} -d ${PGDATABASE} -c "SELECT pg_reload_conf();" || return 1 
-
-	# Creating a database store for postgres
-	[ ! -d ${PG_DB} ] && mkdir -p ${PG_DB}
-	chown postgres:postgres ${PG_DB}
-	chmod 700 ${PG_DB}
-	#Start postgres service
-	systemctl start postgresql.service
-	#Creating new database
-	sudo -u postgres ${INITDB} -D ${PG_DB} -E UTF8 --locale=en_US.UTF-8
-	#Restarting service 
-	systemctl restart postgresql.service
-	echo "INFO: Postgres DB store update -> ${PG_DB}"
 }
 
 # Setup PostgreSQL
-SETUP_PSQL () {
-
+SETUP_PSQL () 
+{	
 	local EXIT_CODE
 	# Export the PostgreSQL connection details as environment variables
 	export PGPASSWORD=${PGPASSWORD}
@@ -168,7 +173,7 @@ SETUP_PSQL () {
 	echo "INFO: Creating new user ${PGUSER}"
 	sudo -i -u postgres psql -c "CREATE USER ${PGUSER} WITH PASSWORD "\'${PGPASSWORD}\'";"
 	#Change the default DB store location
-	PG_DB_SETUP || return 1
+	AGGREGATOR_DB_SETUP || return 1
 	# Create database
 	echo "INFO: Creating new database ${PGDATABASE}"
 	sudo -i -u postgres psql -c "CREATE DATABASE ${PGDATABASE} OWNER ${PGUSER};"
@@ -181,8 +186,8 @@ SETUP_PSQL () {
 }
 
 # Create a .env file with specified environment variables
-CREATE_FLASK_ENV () {
-
+CREATE_FLASK_ENV () 
+{
 	echo "export FLASK_APP=superset" > ${SUPERSET_CONF_DIR}/.env
 	echo "export SUPERSET_CONFIG_PATH=${SUPERSET_CONF_DIR}/superset_config.py" >> ${SUPERSET_CONF_DIR}/.env
 	# Load the .env file
@@ -191,8 +196,8 @@ CREATE_FLASK_ENV () {
 }
 
 # Generate a secret key using openssl and store it in superset_config.py
-CREATE_SUPERSET_CONFIG_PY () {
-
+CREATE_SUPERSET_CONFIG_PY () 
+{
 	SECRET_KEY=$(openssl rand -base64 42)
 	echo "SECRET_KEY = '${SECRET_KEY}'" > ${SUPERSET_CONF_DIR}/superset_config.py
 	chmod 644 ${SUPERSET_CONF_DIR}/superset_config.py
@@ -200,10 +205,10 @@ CREATE_SUPERSET_CONFIG_PY () {
 }
 
 # Create a service for Superset
-SUPERSET_SERVICE () {
-
-	echo "INFO: Creating a service for superset"
-	[ ! -d "${SERVICE_DIR}" ] && mkdir -p ${SERVICE_DIR}
+SUPERSET_SERVICE () 
+{
+echo "INFO: Creating a service for superset"
+[ ! -d "${SERVICE_DIR}" ] && mkdir -p ${SERVICE_DIR}
 cat << _EOL > ${SERVICE_DIR}/superset.service
 [Unit]
 Description=Superset
@@ -227,8 +232,8 @@ _EOL
 }
 
 # Setup Superset
-SETUP_SUPERSET () {
-
+SETUP_SUPERSET () 
+{
 	CREATE_FLASK_ENV
 	CREATE_SUPERSET_CONFIG_PY
 	echo "INFO: Setting up superset"
@@ -245,8 +250,8 @@ SETUP_SUPERSET () {
 }
 
 # Disable AppArmor enforcement for rsyslog
-DISABLE_APPARMOR_RSYSLOG () {
-
+DISABLE_APPARMOR_RSYSLOG () 
+{
 	echo "INFO: Disabling Apparmor for rsyslogd"
 	ln -fs /etc/apparmor.d/usr.sbin.rsyslogd /etc/apparmor.d/disable/
 	[ ! -f "/etc/apparmor.d/disable/usr.sbin.rsyslogd" ] && apparmor_parser -R /etc/apparmor.d/usr.sbin.rsyslogd
@@ -269,17 +274,17 @@ RSYSLOG_CONFIG () {
 }
 
 # Create databases
-DB_CREATE () {
-
+DB_CREATE () 
+{
 	echo "INFO: Creating database: {extended,performance}"
 	python3 ${SCRIPT_DIR}/main.py create-database extended
 	python3 ${SCRIPT_DIR}/main.py create-database performance
 }
 
 # Create a service for DB Insertion
-DB_INSERT_SERVICE () {
-
-	echo "INFO: Creating a service for DB Insertion extended"
+DB_INSERT_SERVICE () 
+{
+echo "INFO: Creating a service for DB Insertion extended"
 cat << _EOL > ${SERVICE_DIR}/superset_db_insert_ext.service
 [Unit]
 Description=Superset.DB.Insert.ext
@@ -335,23 +340,23 @@ INFO () {
 }
 
 # Main function to execute the script
-MAIN () {
-
-	# SETUP_DIR
-	# SYS_PACKAGES
-	# PY_VERSION_CHECK
-	# CREATE_PY_ENV
-	# PY_PACKAGES
+MAIN () 
+{
+	SETUP_DIR
+	SYS_PACKAGES
+	PY_VERSION_CHECK
+	CREATE_PY_ENV
+	PY_PACKAGES
 	SETUP_PSQL
-	# SETUP_SUPERSET
-	# RSYSLOG_CONFIG
-	# DB_INSERT_SERVICE
-	# INFO
+	SETUP_SUPERSET
+	RSYSLOG_CONFIG
+	DB_INSERT_SERVICE
+	INFO
 }
 
 # Function to print the usage of the script
-usage() {
-
+usage() 
+{
   echo "Usage: $0 [-u PGUSER] [-p PGPASSWORD] [-H PGHOST] [-P PGPORT] [-d PGDATABASE] [-a ADMIN_USERNAME] [-w ADMIN_PASSWORD] [-f ADMIN_FIRST_NAME] [-l ADMIN_LAST_NAME] [-e ADMIN_EMAIL][-D DIRECTORY_NAME] [-v VENV_NAME]"
   exit 1
 }
