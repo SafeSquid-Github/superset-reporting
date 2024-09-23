@@ -95,7 +95,7 @@ PY_VERSION_CHECK () {
 	[[ ${PY_V} != 3.10 ]] && GET_PYTHON_3_10
 	PY_VERSION=$(python3 --version)
 	PY_V=${PY_VERSION#*.}
-	[[ ${PY_V} != 3.10 ]] && echo "INFO: python version not supported, 3.10 is required" && return 1
+	[[ ${PY_V} != 3.10 ]] && echo "INFO: python version not supported, 3.10 is required" && exit 1
 }
 
 # Create the virtual environment
@@ -131,16 +131,18 @@ _EOL
 
 PG_DB_SETUP () {
 	
-	echo "INFO: Postgres DB store update -> ${PG_DB}"
 	local DB=$(sudo -i -u postgres psql -c "SHOW data_directory;" | grep -E -o '/.*')
 	local CONF=$(find /etc/postgresql/ -name postgresql.conf)
+	local INITDB=$(find /usr/lib/postgresql  -name initdb)
 
 	[ -z "${DB}" ] && echo "INFO: DB not found" && return 1 
 	[ "${DB}" == "${PG_DB}" ] && echo "INFO: DB Exists -> ${PG_DB}" && return 0
 	#Stop postgres service
 	systemctl stop postgresql.service
 	#Update the configuration
-	ln -sf ${PG_CONF} ${CONF}
+	sudo -u postgres psql -h localhost -U ${PGUSER} -d ${PGDATABASE} -c "ALTER SYSTEM SET data_directory = '/var/db/aggregator';"
+	sudo -u postgres psql -h localhost -U ${PGUSER} -d ${PGDATABASE} -c "SELECT pg_reload_conf();" || return 1 
+
 	# Creating a database store for postgres
 	[ ! -d ${PG_DB} ] && mkdir -p ${PG_DB}
 	chown postgres:postgres ${PG_DB}
@@ -148,9 +150,10 @@ PG_DB_SETUP () {
 	#Start postgres service
 	systemctl start postgresql.service
 	#Creating new database
-	sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D ${PG_DB} -E UTF8 --locale=en_US.UTF-8
+	sudo -u postgres ${INITDB} -D ${PG_DB} -E UTF8 --locale=en_US.UTF-8
 	#Restarting service 
 	systemctl restart postgresql.service
+	echo "INFO: Postgres DB store update -> ${PG_DB}"
 }
 
 # Setup PostgreSQL
@@ -161,11 +164,11 @@ SETUP_PSQL () {
 	export PGPASSWORD=${PGPASSWORD}
 	# Create PostgreSQL config.ini file
 	CREATE_PSQL_CONF
-	#Change the default DB store location
-	PG_DB_SETUP || return 1
 	# Create a new user
 	echo "INFO: Creating new user ${PGUSER}"
 	sudo -i -u postgres psql -c "CREATE USER ${PGUSER} WITH PASSWORD "\'${PGPASSWORD}\'";"
+	#Change the default DB store location
+	PG_DB_SETUP || return 1
 	# Create database
 	echo "INFO: Creating new database ${PGDATABASE}"
 	sudo -i -u postgres psql -c "CREATE DATABASE ${PGDATABASE} OWNER ${PGUSER};"
@@ -334,16 +337,16 @@ INFO () {
 # Main function to execute the script
 MAIN () {
 
-	SETUP_DIR
-	SYS_PACKAGES
-	PY_VERSION_CHECK
-	CREATE_PY_ENV
-	PY_PACKAGES
+	# SETUP_DIR
+	# SYS_PACKAGES
+	# PY_VERSION_CHECK
+	# CREATE_PY_ENV
+	# PY_PACKAGES
 	SETUP_PSQL
-	SETUP_SUPERSET
-	RSYSLOG_CONFIG
-	DB_INSERT_SERVICE
-	INFO
+	# SETUP_SUPERSET
+	# RSYSLOG_CONFIG
+	# DB_INSERT_SERVICE
+	# INFO
 }
 
 # Function to print the usage of the script
