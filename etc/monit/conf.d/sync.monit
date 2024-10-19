@@ -1,0 +1,28 @@
+set daemon 10
+
+set httpd
+        port 2812
+                use address *
+                allow 0.0.0.0/0
+                allow @administrator
+set httpd unixsocket /run/monit.socket
+        allow root:root
+
+#
+check file do_sync with path "/var/log/sync.log"
+every "* 0-23 * * 0-6"
+    if not exist 
+        then 
+            exec "/usr/bin/touch /var/log/sync.log"
+    if timestamp older than 1 hour
+        then 
+            exec "/bin/bash /opt/aggregator/bin/sync.sh && /bin/bash /opt/aggregator/bin/insert.sh"
+
+#Check for changes in server.list file and if updated execute sync.sh
+check file servers_list with path "/opt/aggregator/servers.list"
+    if not exist 
+        then
+            exec "/usr/bin/touch /opt/aggregator/servers.list"	
+    if changed timestamp
+        then
+            exec "/bin/bash /opt/aggregator/bin/sync.sh"

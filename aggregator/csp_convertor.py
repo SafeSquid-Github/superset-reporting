@@ -6,15 +6,19 @@ import sys
 def convert_to_tsv(input_file, output_file):
     data_rows = []
     header = [
-        '\"document-uri\"',
-        '\"violated-directive\"',
-        '\"effective-directive',
-        '\"original-policy\"',
-        '\"blocked-uri\"',
-        '\"line-number\"',
-        '\"source-file\"',
-        '\"status-code\"',
-        '\"user\"',
+        '\"document_uri\"',
+        '\"referrer\"',
+        '\"violated_directive\"',
+        '\"effective_directive\"',
+        '\"original_policy\"',
+        '\"disposition\"',
+        '\"blocked_uri\"',
+        '\"status_code\"',
+        '\"source_file\"',
+        '\"line_number\"',
+        '\"column_number\"',
+        '\"script_sample\"',
+        '\"from_user\"',
         '\"date\"',
         '\"CLIENTID\"',
         '\"USERNAME\"',
@@ -35,19 +39,23 @@ def convert_to_tsv(input_file, output_file):
 
                 # Create a row of data with quotes around values
                 data_row = {
-                    '\"document-uri\"': f'"{csp_report.get("document-uri", "")}"',
-                    '\"violated-directive\"': f'"{csp_report.get("violated-directive", "")}"',
-                    '\"effective-directive\"': f'"{csp_report.get("effective-directive", "")}"',
-                    '\"original-policy\"': f'"{csp_report.get("original-policy", "")}"',
-                    '\"blocked-uri\"': f'"{csp_report.get("blocked-uri", "")}"',
-                    '\"line-number\"': f'"{csp_report.get("line-number", "")}"',
-                    '\"source-file': f'"{csp_report.get("source-file", "")}"',
-                    '\"status-code': f'"{csp_report.get("status-code", "")}"',
-                    '\"user': f'"{from_info.get("user", "")}"',
-                    '\"date\"': f'"{from_info.get("date", "")}"',
-                    '\"CLIENTID\"': f'"{info.get("CLIENTID", "")}"',
-                    '\"USERNAME\"': f'"{info.get("USERNAME", "")}"',
-                    '\"handler\"': f'"{info.get("handler", "")}"'
+                    '\"document_uri\"': f'"{csp_report.get("document-uri", "-")}"',
+                    '\"referrer\"': f'"{csp_report.get("referrer", "-")}"',
+                    '\"violated_directive\"': f'"{csp_report.get("violated-directive", "-")}"',
+                    '\"effective_directive\"': f'"{csp_report.get("effective-directive", "-")}"',
+                    '\"original_policy\"': f'"{csp_report.get("original-policy", "-")}"',
+                    '\"disposition\"': f'"{csp_report.get("disposition", "-")}"',
+                    '\"blocked_uri\"': f'"{csp_report.get("blocked-uri", "-")}"',
+                    '\"status_code\"': int(csp_report.get("status-code", 0)),
+                    '\"source_file\"': f'"{csp_report.get("source-file", "-")}"',
+                    '\"line_number\"': int(csp_report.get("line-number", 0)),
+                    '\"column_number\"': int(csp_report.get("column-number", 0)),
+                    '\"script_sample\"': f'"{csp_report.get("script-sample", "-")}"',
+                    '\"from_user\"': f'"{from_info.get("user", "-")}"',
+                    '\"date\"': int(from_info.get("date", 0)),
+                    '\"CLIENTID\"': int(info.get("CLIENTID", 0)),
+                    '\"USERNAME\"': f'"{info.get("USERNAME", "-")}"',
+                    '\"handler\"': f'"{info.get("handler", "-")}"'
                 }
 
                 data_rows.append(data_row)

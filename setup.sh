@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # syslog logging
-# THIS_PROCESS=$BASHPID
-# TAG="aggregator.setup"
+THIS_PROCESS=$BASHPID
+TAG="aggregator.setup"
 
-# # Redirect output to syslog
-# if [[ -t 1 ]]; then
-#     exec 1> >( exec logger --id=${THIS_PROCESS} -s -t "${TAG}" ) 2>&1
-# else
-#     exec 1> >( exec logger --id=${THIS_PROCESS} -t "${TAG}" ) 2>&1
-# fi
+# Redirect output to syslog
+if [[ -t 1 ]]; then
+    exec 1> >( exec logger --id=${THIS_PROCESS} -s -t "${TAG}" ) 2>&1
+else
+    exec 1> >( exec logger --id=${THIS_PROCESS} -t "${TAG}" ) 2>&1
+fi
 
 # Default values for database and admin settings
 PROJECT_DIR="/opt/aggregator"
@@ -32,7 +32,12 @@ SUPERSET_CONF_DIR="${PROJECT_DIR}/etc/superset"
 AGG_CONF_DIR="${PROJECT_DIR}/etc/aggregator"
 SCRIPT_DIR="${PROJECT_DIR}/bin"
 PG_CONF="${PROJECT_DIR}/etc/postgresql/postgresql.conf"
-AGGREGATOR_DB="/var/db/aggregator"
+DATA_DIRECTORY="/var/db/aggregator"
+SSH_KEY="id_rsa"
+KEY_STORE="/root/.ssh"
+RRSYNC="/usr/local/bin/rrsync"
+OUR_IP=$(ip a | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1')
+
 
 # Validate required arguments
 [ -z ${OPTARG} ] && echo "INFO: Using default values"
@@ -53,7 +58,6 @@ SETUP_DIR ()
 	# Move all configurations
 	rsync -azv ${CURRENT_DIR}/aggregator/*.xml "${AGG_CONF_DIR}/"
 	rsync -azv ${CURRENT_DIR}/etc/* "${PROJECT_DIR}/etc/"
-	rsync -azv ${PROJECT_DIR}/etc/rsyslog.d/* /etc/rsyslog.d/
 
 	echo "INFO: Project directory synced with latest changes"
 	echo "INFO: Setting up permissions"
@@ -66,17 +70,21 @@ SETUP_DIR ()
 SYS_PACKAGES () 
 {
 	echo "INFO: Updating your system and installing required packages"
-	apt -qq update && apt -qq upgrade -y
-	apt -qq install -y build-essential libssl-dev libffi-dev python3-dev python3-pip python3-venv libsasl2-dev libldap2-dev default-libmysqlclient-dev libpq-dev python3-psycopg2 redis-server postgresql net-tools inotify-tools
+	export DEBIAN_FRONTEND=noninteractive
+	apt update && apt upgrade -y
+	apt install -y build-essential libssl-dev libffi-dev python3-dev python3-pip python3-venv libsasl2-dev libldap2-dev default-libmysqlclient-dev libpq-dev python3-psycopg2 redis-server postgresql net-tools inotify-tools monit
+	apt autoremove -y && apt autoclean -y
+	export DEBIAN_FRONTEND=
 }
 
 # Get Python 3.10 for systems where the Python version is not 3.10
 GET_PYTHON_3_10 () 
 {
-	apt -qq install software-properties-common -y
+	export DEBIAN_FRONTEND=noninteractive
+	apt install software-properties-common -y
 	# Add PPA if not already added
 	grep -q "deadsnakes/ppa" /etc/apt/sources.list /etc/apt/sources.list.d/* || add-apt-repository ppa:deadsnakes/ppa -y && echo "INFO: Adding new source for python 3.10 packages"
-	apt -qq install python3.10 python3.10-venv python3.10-dev -y
+	apt install python3.10 python3.10-venv python3.10-dev -y
 	echo "INFO: Setting python3.10 as default"
 	# Update alternatives to set Python 3.10 as default
 	update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
@@ -84,6 +92,8 @@ GET_PYTHON_3_10 ()
 	update-alternatives --set python3 /usr/bin/python3.10
 	# Install pip for Python 3.10
 	curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+	apt autoremove -y && apt autoclean -y
+	export DEBIAN_FRONTEND=
 }
 
 # Check Python version
@@ -137,28 +147,35 @@ AGGREGATOR_DB_CREATE ()
 {
 	local INITDB=$(find /usr/lib/postgresql  -name initdb)
 	# Creating a database store for postgres
-	[ ! -d ${AGGREGATOR_DB} ] && mkdir -p ${AGGREGATOR_DB}
-	chown postgres:postgres ${AGGREGATOR_DB}
-	chmod 700 ${AGGREGATOR_DB}
+	[ ! -d ${DATA_DIRECTORY} ] && mkdir -p ${DATA_DIRECTORY}
+	chown postgres:postgres ${DATA_DIRECTORY}
+	chmod 700 ${DATA_DIRECTORY}
 	#Stop postgres service
 	systemctl stop postgresql.servic
 	#Creating new database
-	sudo -u postgres ${INITDB} -D ${AGGREGATOR_DB} -E UTF8 --locale=en_US.UTF-8
+	sudo -u postgres ${INITDB} -D ${DATA_DIRECTORY} -E UTF8 --locale=en_US.UTF-8
 	#Restarting service 
 	systemctl restart postgresql.service
-	echo "INFO: Postgres DB store update -> ${AGGREGATOR_DB}"
+	echo "INFO: Postgres DB store update -> ${DATA_DIRECTORY}"
 }
 
 AGGREGATOR_DB_SETUP () 
 {	
-	local PG_DB=$(sudo -i -u postgres psql -c "SHOW data_directory;" | grep -E -o '/.*')
+	local PG_DATA_DIRECTORY=$(sudo -i -u postgres psql -c "SHOW data_directory;" | grep -E -o '/.*')
 	local CONF=$(find /etc/postgresql/ -name postgresql.conf)
+	local DB_EXISTS=$(sudo -i -u postgres psql -t -c "SELECT 1 FROM pg_database WHERE datname = "\'${PGDATABASE}\'";" | tr -d '[:space:]')
 
-	[ -z "${PG_DB}" ] && echo "INFO: DB not found" && AGGREGATOR_DB_CREATE
-	[ "${PG_DB}" == "${AGGREGATOR_DB}" ] && echo "INFO: DB Exists -> ${AGGREGATOR_DB}" && return 0
+	[ -z "${PG_DATA_DIRECTORY}" ] && echo "INFO: DB not found" && AGGREGATOR_DB_CREATE
+	[ "${PG_DATA_DIRECTORY}" != "${DATA_DIRECTORY}" ] && AGGREGATOR_DB_CREATE
+	[ -z "${DB_EXISTS}" ] && sudo -i -u postgres psql -c "CREATE DATABASE ${PGDATABASE} OWNER ${PGUSER};"
+
+	local PG_DATA_DIRECTORY=$(sudo -i -u postgres psql -c "SHOW data_directory;" | grep -E -o '/.*')
+	[ "${PG_DATA_DIRECTORY}" == "${DATA_DIRECTORY}" ] && echo "INFO: DB Exists -> ${DATA_DIRECTORY}" && return 0
+
 	#Update the configuration
-	sudo -u postgres psql -h localhost -U ${PGUSER} -d ${PGDATABASE} -c "ALTER SYSTEM SET data_directory = '/var/db/aggregator';"
-	sudo -u postgres psql -h localhost -U ${PGUSER} -d ${PGDATABASE} -c "SELECT pg_reload_conf();" || return 1 
+	sed -i "s|^data_directory = .*|data_directory = '/var/db/aggregator'|" ${CONF}
+	systemctl start postgresql.service
+	sudo -u postgres psql -d ${PGDATABASE} -c "SELECT pg_reload_conf();" || return 1 
 }
 
 # Setup PostgreSQL
@@ -198,6 +215,7 @@ CREATE_FLASK_ENV ()
 # Generate a secret key using openssl and store it in superset_config.py
 CREATE_SUPERSET_CONFIG_PY () 
 {
+	[ -f "${SUPERSET_CONF_DIR}/superset_config.py" ] && return 1
 	SECRET_KEY=$(openssl rand -base64 42)
 	echo "SECRET_KEY = '${SECRET_KEY}'" > ${SUPERSET_CONF_DIR}/superset_config.py
 	chmod 644 ${SUPERSET_CONF_DIR}/superset_config.py
@@ -219,6 +237,7 @@ User=root
 Group=root
 WorkingDirectory=${SCRIPT_DIR}/
 ExecStart=/bin/bash -c 'source ${PROJECT_DIR}/safesquid_reporting/bin/activate && /bin/bash ${SCRIPT_DIR}/run.sh -d'
+ExecStop=deactive
 Restart=on-failure
 RestartSec=5s
 
@@ -249,94 +268,76 @@ SETUP_SUPERSET ()
 	SUPERSET_SERVICE
 }
 
-# Disable AppArmor enforcement for rsyslog
-DISABLE_APPARMOR_RSYSLOG () 
-{
-	echo "INFO: Disabling Apparmor for rsyslogd"
-	ln -fs /etc/apparmor.d/usr.sbin.rsyslogd /etc/apparmor.d/disable/
-	[ ! -f "/etc/apparmor.d/disable/usr.sbin.rsyslogd" ] && apparmor_parser -R /etc/apparmor.d/usr.sbin.rsyslogd
-}
-
-# Configure rsyslog
-RSYSLOG_CONFIG () {
-
-	local EXIT_CODE
-	echo "INFO: Setting up rsyslog"
-	rsync -azv "${SCRIPT_DIR}/log_rotate.sh" /usr/local/bin/
-	echo "INFO: Rsyslog configuration check"
-	rsyslogd -N1 -f /etc/rsyslog.d/aggregator.conf &> /dev/null
-	EXIT_CODE="${?}"
-	[ ${EXIT_CODE} == "1" ] && echo "ERROR: SYSLOG CONF: /etc/rsyslog.d/aggregator.conf: INVALID Config" && return
-	echo "INFO: Performing rsyslog service restart"
-	systemctl restart rsyslog.service
-	echo "INFO: Disabling Apparmor for rsyslog"
-	DISABLE_APPARMOR_RSYSLOG
-}
-
 # Create databases
 DB_CREATE () 
 {
-	echo "INFO: Creating database: {extended,performance}"
-	python3 ${SCRIPT_DIR}/main.py create-database extended
-	python3 ${SCRIPT_DIR}/main.py create-database performance
+	echo "INFO: Creating database: {extended,performance,csp}"
+	local TABLE_EXT_EXISTS=$(sudo -i -u postgres psql -d  "${PGDATABASE}" -t -c "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'extended_logs';" | tr -d '[:space:]')
+	local TABLE_PERF_EXISTS=$(sudo -i -u postgres psql -d  "${PGDATABASE}" -t -c "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'performance_logs';" | tr -d '[:space:]')
+	local TABLE_CSP_EXISTS=$(sudo -i -u postgres psql -d  "${PGDATABASE}" -t -c "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'csp_logs';" | tr -d '[:space:]')
+	[ -z ${TABLE_EXT_EXISTS} ] && python3 ${SCRIPT_DIR}/main.py create-database extended
+	[ -z ${TABLE_PERF_EXISTS} ] && python3 ${SCRIPT_DIR}/main.py create-database performance
+	[ -z ${TABLE_CSP_EXISTS} ] && python3 ${SCRIPT_DIR}/main.py create-database csp
 }
 
-# Create a service for DB Insertion
-DB_INSERT_SERVICE () 
+GEN_SSH_KEY()
 {
-echo "INFO: Creating a service for DB Insertion extended"
-cat << _EOL > ${SERVICE_DIR}/superset_db_insert_ext.service
-[Unit]
-Description=Superset.DB.Insert.ext
-After=network.target
+	[ "x${KEY_STORE}" == "x" ] && echo "undefined: KEY_STORE " && return;
+	[ "x${SSH_KEY}" == "x" ] && echo "undefined: SSH_KEY"  && return;
+	[ -f "${KEY_STORE}/${SSH_KEY}" ] && echo "already exists: ${KEY_STORE}/${SSH_KEY}" && return;
+	[ ! -d "${KEY_STORE}" ] && mkdir -p "${KEY_STORE}"  ;
+	ssh-keygen -t rsa -b 4096 -C "aggregator@${OUR_IP}" -f ${KEY_STORE}/${SSH_KEY} -N "" 
+}
 
-[Service]
-User=root
-Group=root
-ExecStart=/bin/bash ${SCRIPT_DIR}/ext_db_insert.sh
-Restart=on-failure
-RestartSec=5s
+MONIT_PAM()
+{
+	[ -f /etc/pam.d/monit ] && echo "already exists: /etc/pam.d/monit" && return 0;
+	cat <<- _EOF > /etc/pam.d/monit 
+	# monit: auth account password session
+	auth       sufficient     pam_securityserver.so
+	auth       sufficient     pam_unix.so
+	auth       required       pam_deny.so
+	account    required       pam_permit.so
+	_EOF
+}
 
-[Install]
-WantedBy=multi-user.target
-_EOL
-  echo "INFO: Creating a service for DB Insertion performance"
-  cat << _EOL > ${SERVICE_DIR}/superset_db_insert_perf.service
-[Unit]
-Description=Superset.DB.Insert.perf
-After=network.target
+MONIT_SETUP()
+{
+	for MONIT_CONF in $(find ${PROJECT_DIR}/etc/monit/conf.d/*.monit -type f)
+	do
+		ln -vfs ${MONIT_CONF} /etc/monit/conf.d/ 
+	done
+	monit reload 
+}
 
-[Service]
-User=root
-Group=root
-ExecStart=/bin/bash ${SCRIPT_DIR}/perf_db_insert.sh
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-_EOL
-
-	ln -sf ${SERVICE_DIR}/superset_db_insert_ext.service /etc/systemd/system/
-	ln -sf ${SERVICE_DIR}/superset_db_insert_perf.service /etc/systemd/system/
-
-	[ -f "/etc/systemd/system/superset_db_insert_ext.service " ] && systemctl daemon-reload
-	[ -f "/etc/systemd/system/superset_db_insert_perf.service " ] && systemctl daemon-reload
-
-	systemctl enable superset_db_insert_ext.service && systemctl start superset_db_insert_ext.service
-	systemctl enable superset_db_insert_perf.service && systemctl start superset_db_insert_perf.service
-
-	DB_CREATE
+SHARE_AUTHORIZATION()
+{
+	local AUTHORIZATION=
+	
+	[ ! -f "${KEY_STORE}/${SSH_KEY}.pub" ] && echo "not found: ${KEY_STORE}/${SSH_KEY}.pub" && return 1;
+	
+	AUTHORIZATION="command="
+	AUTHORIZATION+='"'
+	AUTHORIZATION+="${RRSYNC} -ro /var/log/safesquid/extended/"
+	AUTHORIZATION+='"'
+	AUTHORIZATION+=' '
+	AUTHORIZATION+=`<${KEY_STORE}/${SSH_KEY}.pub`
+	cat <<- _EOF > "${PROJECT_DIR}/setup_authorized_keys" 
+	# The following directive in /root/.ssh/authorized_keys of your SafeSquid proxy servers enables aggregator to sync log files
+	${AUTHORIZATION}
+	_EOF
 }
 
 # Display information after setup
 INFO () {
 
 	echo ""
-	echo "INFO: To activate your virtual environment execute below command."
-	echo "source ${PROJECT_DIR}/safesquid_reporting/bin/activate"
+	echo "Manual Setup Required"
+	echo "Copy the content below into the /root/.ssh/authorized_keys file on your SafeSquid proxy servers to enable the aggregator to sync log files."
+	cat "${PROJECT_DIR}/setup_authorized_keys"
 	echo ""
-	echo "You'll be required to activate your virtual environment while importing data into your database manually"
+	echo "Copy the rrsync binary from ${PROJECT_DIR}/bin/rrsync to your SafeSquid proxy servers at /usr/local/bin/rrsync."
+	echo ""
 }
 
 # Main function to execute the script
@@ -349,8 +350,10 @@ MAIN ()
 	PY_PACKAGES
 	SETUP_PSQL
 	SETUP_SUPERSET
-	RSYSLOG_CONFIG
-	DB_INSERT_SERVICE
+	GEN_SSH_KEY
+	SHARE_AUTHORIZATION
+	MONIT_PAM
+	MONIT_SETUP
 	INFO
 }
 
@@ -382,47 +385,5 @@ do
   esac
 done
 
-
 # Execute the main function
 MAIN
-
-
-#################
-#Unused fucntions
-##################################################################################
-# # Create Redis config file
-# CREATE_REDIS_CONF () {
-
-# 	echo "INFO: Creating redis config file"
-# cat << _EOL >> ${SUPERSET_CONF_DIR}/config.ini
-# from redis import StrictRedis
-
-# # Redis configuration
-# REDIS_HOST = 'localhost'
-# REDIS_PORT = 6379
-# REDIS_DB = 0
-
-# # Redis URI
-# REDIS_URI = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
-# # Configure Flask-Limiter to use Redis
-# SUPERSET_FLASK_LIMTER_STORAGE_URI = REDIS_URI
-
-# # Example of setting up other Redis-based configurations for Superset
-# RESULTS_BACKEND = RedisCache(
-#   host=REDIS_HOST,
-#   port=REDIS_PORT,
-#   key_prefix='superset_results'  # Optional: You can configure the cache as well
-# )
-
-# CACHE_CONFIG = {
-#   'CACHE_TYPE': 'RedisCache',
-#   'CACHE_DEFAULT_TIMEOUT': 300,
-#   'CACHE_KEY_PREFIX': 'superset_',
-#   'CACHE_REDIS_HOST': REDIS_HOST,
-#   'CACHE_REDIS_PORT': REDIS_PORT,
-#   'CACHE_REDIS_DB': REDIS_DB,
-# }
-# _EOL
-# 	echo "INFO: Created config.ini file with the specified content."
-# }

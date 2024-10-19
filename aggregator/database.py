@@ -47,6 +47,8 @@ class DatabaseConnectionPool:
         with conn.cursor() as cursor:
             try:
                 cursor.execute('BEGIN;')
+                applog.logger.debug(cursor.mogrify(sql_commands, values).decode('utf-8'))
+
                 # Convert Python lists to PostgreSQL arrays
                 cursor.execute(sql_commands, values)
                 result = cursor.fetchall() if cursor.description else []
@@ -90,11 +92,15 @@ class DatabaseConnectionPool:
         row_counts: Dict[str, int] = {table_name: row_count for table_name, row_count in self.execute_command(query)}
         return row_counts
 
-    def clear_database(self) -> None:
-        table_names = self.fetch_table_names()
-        for table_name in table_names:
-            self.execute_command(f"DROP TABLE {table_name} CASCADE")
-        applog.logger.debug("All tables dropped successfully.")
+    def clear_database(self, db_name:str=None) -> None:
+        if db_name:
+            self.execute_command(f"DROP TABLE {db_name}_logs CASCADE")
+            applog.logger.debug(f"Table {db_name} dropped successfully.")
+        else:
+            table_names = self.fetch_table_names()
+            for table_name in table_names:
+                self.execute_command(f"DROP TABLE {table_name} CASCADE")
+            applog.logger.debug("All tables dropped successfully.")
 
     def fetch_table_names(self) -> List[str]:
         query = """
@@ -121,9 +127,13 @@ class DatabaseConnectionPool:
         formatted_values = []
         
         for col, val in zip(columns, values):
-            if col.data_format:
-                placeholders.append(f"to_timestamp(%s, '{col.data_format}')")
-                formatted_values.append(val)
+            if col.datatype == "TIMESTAMP":    
+                if col.data_format:
+                    placeholders.append(f"to_timestamp(%s, '{col.data_format}')")
+                    formatted_values.append(val)
+                else:
+                    placeholders.append(f"to_timestamp(%s)")
+                    formatted_values.append(val)
             else:
                 placeholders.append('%s')
                 formatted_values.append(val if not col.isArray else [val])

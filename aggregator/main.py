@@ -19,7 +19,7 @@ class AppContext:
         """Configure logging to log errors to console and exceptions/warnings to file."""
         applog.set_logger(__name__, log_file)
         applog.set_logger_level('DEBUG')
-        applog.track_module('database')
+        # applog.track_module('database')
         applog.track_module('log_parser')
 
     def load_parser(self, log_type: str):
@@ -52,25 +52,26 @@ def analyse_database(ctx: AppContext):
     print(ctx.db_manager)  # Placeholder for actual analysis logic
 
 @cli.command()
+@click.argument('log_type', type=click.Choice(['extended', 'performance', 'csp'], case_sensitive=False), required=False)
 @pass_context
-def clear_database(ctx: AppContext):
+def clear_database(ctx: AppContext, log_type: str):
     """Clear database and drop all tables."""
-    ctx.db_manager.clear_database()
+    ctx.db_manager.clear_database(log_type)
 
 @cli.command()
-@click.argument('log_type', type=click.Choice(['extended', 'performance'], case_sensitive=False), required=True)
+@click.argument('log_type', type=click.Choice(['extended', 'performance', 'csp'], case_sensitive=False), required=True)
 @pass_context
 def create_database(ctx: AppContext, log_type: str):
     """
     Create database and tables for log type.
     
-    log_type: Type of log to create database for. Choices are 'extended' or 'performance'.
+    log_type: Type of log to create database for. Choices are 'extended', 'csp' or 'performance'.
     """
     ctx.load_parser(log_type)
     ctx.parser.create_tables()
 
 @cli.command()
-@click.argument('log_type', type=click.Choice(['extended', 'performance'], case_sensitive=False), default='extended')
+@click.argument('log_type', type=click.Choice(['extended', 'performance', 'csp'], case_sensitive=False), default='extended')
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--workers', type=click.IntRange(1, 100), default=10, help='Number of workers to use for insertion.')
 @pass_context
@@ -78,7 +79,7 @@ def insert(ctx: AppContext, log_type: str, path: str, workers: int):
     """
     Insert log entries from a file into the database.
     
-    log_type: Type of log to insert. Choices are 'extended' or 'performance'.
+    log_type: Type of log to insert. Choices are 'extended', 'csp' or 'performance'.
     path: Path to the log file or directory containing log files.
     workers: Number of workers to use for insertion.
     """
