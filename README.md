@@ -7,7 +7,16 @@ This guide will walk you through the setup and execution process for configuring
 
 This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. The `setup.sh` script will automate the configuration of various components necessary for the setup, including setting up Monit for log synchronization and monitoring.
 
-### 1. Execute with Default Values
+### 1. Clone the GitHub Repository
+
+First, clone the GitHub repository that contains the necessary files for setup:
+
+```bash
+git clone https://github.com/SafeSquid-Github/superset-reporting.git
+cd superset-reporting
+```
+
+### 2. Execute with Default Values
 
 To start the setup process with the default configuration, execute the following command:
 
@@ -15,7 +24,7 @@ To start the setup process with the default configuration, execute the following
 bash setup.sh
 ```
 
-### 2. Check Service Status
+### 3. Check Service Status
 
 After the setup completes, verify that the services are running correctly:
 
@@ -51,6 +60,7 @@ To enable the aggregator to sync log files, follow these steps:
    ```bash
    chmod 755 /usr/local/bin/rrsync
    ```
+
 4. **Specify Proxy Server IPs**
 
    After adding the authorization key, you must specify the IP addresses of the proxy servers from which the logs will be pulled. Open the file `/opt/aggregator/servers.list` on the log server and enter each proxy server’s IP address on a new line.
@@ -62,7 +72,7 @@ To enable the aggregator to sync log files, follow these steps:
    192.168.1.12
    ```
 
-   This file will allow aggregator to pull logs from each specified proxy server.
+   This file will allow the aggregator to pull logs from each specified proxy server.
 
 ## Monit Configuration
 
