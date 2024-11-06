@@ -1,16 +1,18 @@
 # Getting Started with SuperSet
 
-This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. 
-The `setup.sh` script will automate the configuration of various components necessary for the setup.
+This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. The `setup.sh` script will automate the configuration of various components necessary for the setup.
 
 ## Default Setup
+> **Note**: Ensure you are logged in as the root user before performing any of the following actions. Root access is required for configuring services, modifying system files, and setting up log synchronization.
+
+This guide will walk you through the setup and execution process for configuring SuperSet with SafeSquid Reporting. The `setup.sh` script will automate the configuration of various components necessary for the setup, including setting up Monit for log synchronization and monitoring.
 
 ### 1. Execute with Default Values
 
 To start the setup process with the default configuration, execute the following command:
 
 ```bash
-sudo bash setup.sh
+bash setup.sh
 ```
 
 ### 2. Check Service Status
@@ -19,47 +21,69 @@ After the setup completes, verify that the services are running correctly:
 
 ```bash
 systemctl status superset.service
-systemctl status superset_db_insert_ext.service
-systemctl status superset_db_insert_perf.service
-systemctl status superset_db_insert_csp.service
 ```
 
-Once the services are working without any issues, you can configure your client to forward logs to the log server (which in this case, will be your proxy server). 
-To update the log settings, refer to the following documents:
+Once the services are running without any issues, you can configure your log server to pull logs from your proxy server.
 
-- [Forwarding Logs to the aggregator Server](https://help.safesquid.com/portal/en/kb/articles/forwarding-logs-to-the-siem-server-by-configuring-the-udp-port)
-- [SafeSquid Startup Parameters Overview](https://help.safesquid.com/portal/en/kb/articles/safesquid-startup-parameters#Overview)
+## Setting Up rsync for Log Synchronization
 
-**Note:** Using the startup parameters you can forward extended logs, however, for performance and CSP logs you are required to follow the method below for setting up the log forward.
+To enable the aggregator to sync log files, follow these steps:
 
-### Setting Up rsyslog for Forwarding Performance and CSP Logs (For your proxy server)
+1. **Add SSH Key to SafeSquid Proxy Server**
 
-To forward performance and CSP logs, you need to configure `rsyslog` using a custom configuration file. Follow the steps below:
+   The SSH key for the log aggregator server can be found in `/opt/aggregator/setup_authorized_keys` on the log server. 
+   Add this key to the `/root/.ssh/authorized_keys` file on each SafeSquid proxy server to allow secure access.
 
-1. **Download and Configure the rsyslog File**  
-   Use the following command to download the custom `rsyslog.conf` file and place it in the correct directory:
+2. **Download and Set Up rrsync Script**
 
-   ```bash
-   wget https://raw.githubusercontent.com/SafeSquid-Github/superset-reporting/master/proxy_rsyslog/proxyserver.conf -O /etc/rsyslog.d/proxyserver.conf
-   ```
-
-2. **Validate the Configuration**  
-   Validate the configuration by running the following command:
+   Use `curl` to download the `rrsync` script to the SafeSquid proxy server:
 
    ```bash
-   rsyslogd -N1 -f /etc/rsyslog.d/proxyserver.conf &> /dev/null && echo 'INFO: Config OK!!'
+   curl -o /usr/local/bin/rrsync https://raw.githubusercontent.com/SafeSquid-Github/superset-reporting/refs/heads/master/scripts/rrsync
    ```
 
-   If the configuration is correct, you will see the message: `INFO: Config OK!!`
+   This will save the script to `/usr/local/bin/rrsync`.
 
-3. **Restart the rsyslog Service**  
-   After configuring, restart the `rsyslog` service to apply the changes:
+3. **Set Execute Permissions**
+
+   Ensure that `rrsync` has the appropriate permissions by running:
 
    ```bash
-   systemctl restart rsyslog.service
+   chmod 755 /usr/local/bin/rrsync
+   ```
+4. **Specify Proxy Server IPs**
+
+   After adding the authorization key, you must specify the IP addresses of the proxy servers from which the logs will be pulled. Open the file `/opt/aggregator/servers.list` on the log server and enter each proxy server’s IP address on a new line.
+
+   For example:
+   ```plaintext
+   192.168.1.10
+   192.168.1.11
+   192.168.1.12
    ```
 
-By following these steps, you will successfully set up `rsyslog` to forward performance and CSP logs.
+   This file will allow aggregator to pull logs from each specified proxy server.
+
+## Monit Configuration
+
+The `setup.sh` script automatically configures Monit to monitor and maintain the log synchronization process. Here’s what Monit will do:
+
+1. **Log File Monitoring**:
+   Monit checks the `/var/log/sync.log` file to ensure logs are synced:
+   
+   - If `sync.log` does not exist, Monit will create it.
+   - If `sync.log` is older than an hour, Monit will trigger `sync.sh` to update logs and `insert.sh` to insert data into the databases.
+
+2. **Server List Monitoring**:
+   Monit also monitors the `/opt/aggregator/servers.list` file:
+   
+   - If `servers.list` is modified (e.g., a new IP is added), Monit will execute `sync.sh` to pull updated logs.
+
+This Monit setup helps ensure your logs stay up-to-date, providing accurate data for SuperSet reports without manual intervention.
+
+---
+With these steps complete, your log server is now configured to securely pull logs from the SafeSquid proxy servers, to generate up-to-date reports.
+
 
 
 ## Manual Insertion of Logs into the Database
@@ -237,50 +261,3 @@ For example, analyzing the `extended_logs` table may produce output similar to t
   - **Column**: `download_content_types`, Type: `ARRAY`
   - **Column**: `profiles`, Type: `ARRAY`
   - **Row count**: `67225`
-
-## Process Flow
-```
-                               +----------------+
-                               |  Proxy Server  |
-                               +----------------+
-                                      |
-                                      | Pushes Logs
-                                      v
-                          +--------------------------+
-                          |      rsyslog Server      |
-                          | (Listening on UDP Ports) |
-                          +--------------------------+
-                           /             |             \
-                          /              |              \
-                         v               v               v
-          +-------------------+  +-------------------+  +-------------------+
-          |   Port 514 (Ext)   |  | Port 515 (Perf)   |  |   Port 516 (CSP)  |
-          +-------------------+  +-------------------+  +-------------------+
-                  |                     |                                |
-                  |                     |                                |
-                  v                     v                                v
- +--------------------------------+ +--------------------------------+ +--------------------------------+
- | /var/log/aggregator/rsyslog/   | | /var/log/aggregator/rsyslog/   | | /var/log/aggregator/rsyslog/   |
- | extended/%FROMHOST-IP%/        | | performance/%FROMHOST-IP%/     | | csp/%FROMHOST-IP%/             |
- | extended.log                   | | performance.log                | | csp.log                        |
- +--------------------------------+ +--------------------------------+ +--------------------------------+
-                  |                           |                                 |
-                  |                           |                                 |
-                  v                           v                                 v
- +---------------------------------------------------------------------------------+
- |                                 Log Rotation                                    |
- |                            (Triggered at 100MB)                                 |
- +---------------------------------------------------------------------------------+
-                       |                          |                     |
-                       |                          |                     |
-                       v                          v                     v
- +--------------------------------+ +--------------------------------+ +--------------------------------+
- | Insert into Extended DB        | | Insert into Performance DB     | | Insert into CSP DB             |
- +--------------------------------+ +--------------------------------+ +--------------------------------+
-                  |                     |                     |
-                  |                     |                     |
-                  v                     v                     v
-          +---------------------------------------------------------------------+
-          |                            Database Services                        |
-          +---------------------------------------------------------------------+
-```
