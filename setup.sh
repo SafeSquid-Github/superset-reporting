@@ -318,7 +318,7 @@ SHARE_AUTHORIZATION()
 	
 	AUTHORIZATION="command="
 	AUTHORIZATION+='"'
-	AUTHORIZATION+="${RRSYNC} -ro /var/log/safesquid/extended/"
+	AUTHORIZATION+="${RRSYNC} -ro /var/log/safesquid"
 	AUTHORIZATION+='"'
 	AUTHORIZATION+=' '
 	AUTHORIZATION+=`<${KEY_STORE}/${SSH_KEY}.pub`
